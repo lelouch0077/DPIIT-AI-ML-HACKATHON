@@ -1,3 +1,7 @@
+#REQUIREMENTS
+# apt-get update
+# apt-get install tesseract-ocr-hin tesseract-ocr-ara
+# pip install langdetect
 def text_gen(bbox, image_path):
     import pytesseract
     from PIL import Image
