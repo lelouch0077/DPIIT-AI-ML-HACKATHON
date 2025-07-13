@@ -5,27 +5,29 @@ import torchvision.transforms as transforms
 from PIL import Image
 
 # === Unified CRNN Definition ===
-class CRNN(torch.nn.Module):
+class CRNN(nn.Module):
     def __init__(self, num_classes):
         super(CRNN, self).__init__()
-        self.cnn = torch.nn.Sequential(
-            torch.nn.Conv2d(1, 64, 3, 1, 1), torch.nn.ReLU(), torch.nn.MaxPool2d(2,2),
-            torch.nn.Conv2d(64, 128, 3, 1, 1), torch.nn.ReLU(), torch.nn.MaxPool2d(2,2),
-            torch.nn.Conv2d(128, 256, 3, 1, 1), torch.nn.ReLU(),
-            torch.nn.Conv2d(256, 256, 3, 1, 1), torch.nn.ReLU(), torch.nn.MaxPool2d((2,2), (2,1), (0,1)),
-            torch.nn.Conv2d(256, 512, 3, 1, 1), torch.nn.BatchNorm2d(512), torch.nn.ReLU(),
-            torch.nn.Conv2d(512, 512, 3, 1, 1), torch.nn.BatchNorm2d(512), torch.nn.ReLU(),
-            torch.nn.MaxPool2d((2,2), (2,1), (0,1))
+        self.cnn = nn.Sequential(
+            nn.Conv2d(1, 64, 3, 1, 1), nn.ReLU(), nn.MaxPool2d(2, 2),
+            nn.Conv2d(64, 128, 3, 1, 1), nn.ReLU(), nn.MaxPool2d(2, 2),
+            nn.Conv2d(128, 256, 3, 1, 1), nn.ReLU(),
+            nn.Conv2d(256, 256, 3, 1, 1), nn.ReLU(), nn.MaxPool2d((2, 1)),
+            nn.Conv2d(256, 512, 3, 1, 1), nn.BatchNorm2d(512), nn.ReLU(),
+            nn.Conv2d(512, 512, 3, 1, 1), nn.BatchNorm2d(512), nn.ReLU(), nn.MaxPool2d((2, 1)),
+            nn.Conv2d(512, 512, 2, 1, 0), nn.ReLU(),
         )
-        self.rnn = torch.nn.LSTM(512, 256, bidirectional=True, num_layers=2, batch_first=True)
-        self.fc = torch.nn.Linear(512, num_classes)
+        self.rnn1 = nn.LSTM(512, 256, bidirectional=True, batch_first=True)
+        self.rnn2 = nn.LSTM(512, 256, bidirectional=True, batch_first=True)
+        self.fc = nn.Linear(512, num_classes + 1)  # +1 for CTC blank
 
     def forward(self, x):
-        x = self.cnn(x)
-        x = x.squeeze(2).permute(0, 2, 1)
-        x, _ = self.rnn(x)
-        x = self.fc(x)
-        return x.permute(1, 0, 2)
+        x = self.cnn(x)  # [B, 512, 1, W]
+        x = x.squeeze(2).permute(0, 2, 1)  # [B, W, 512]
+        x, _ = self.rnn1(x)  # [B, W, 512]
+        x, _ = self.rnn2(x)  # [B, W, 512]
+        x = self.fc(x)  # [B, W, C]
+        return x.permute(1, 0, 2)  # [W, B, C] for CTC
 
 # === Combined Charset (English + Arabic) ===
 CHARSET = sorted(set(
